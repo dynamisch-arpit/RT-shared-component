@@ -1,0 +1,38 @@
+{
+    "name": "rt/shared-components",
+    "description": "RT Shared Components - Microservices utilities for queue management, audit trails, and database operations",
+    "version": "1.0.0",
+    "type": "library",
+    "keywords": ["microservices", "sqs", "audit", "queue", "database", "aws"],
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "RT Development Team",
+            "email": "dev@rt.com"
+        }
+    ],
+    "require": {
+        "php": ">=7.4",
+        "ext-json": "*",
+        "ext-pdo": "*",
+        "aws/aws-sdk-php": "^3.0",
+        "predis/predis": "^3.2"
+    },
+    "autoload": {
+        "psr-4": {
+            "RT\\SharedComponents\\": "src/"
+        }
+    },
+    "scripts": {
+        "post-install-cmd": [
+            "@php -r \"file_exists('.env') || copy('.env.example', '.env');\""
+        ]
+    },
+    "config": {
+        "optimize-autoloader": true,
+        "preferred-install": "dist",
+        "sort-packages": true
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}

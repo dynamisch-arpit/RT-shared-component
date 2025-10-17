@@ -1,0 +1,16 @@
+{
+    "packages": {
+        "rt/shared-components": {
+            "1.0.0": {
+                "name": "rt/shared-components",
+                "version": "1.0.0",
+                "type": "package",
+                "source": {
+                    "url": "/path/to/RT-shared-components/.git",
+                    "type": "git",
+                    "reference": "main"
+                }
+            }
+        }
+    }
+}
