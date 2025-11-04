@@ -1,12 +1,12 @@
 <?php
 
-namespace RT\Shared\Services;
+namespace RT\SharedComponents\Services;
 
 use Illuminate\Support\Facades\Redis;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Exception;
-use RT\Shared\Services\ClientConfigCache;
+use RT\SharedComponents\Services\ClientConfigCache;
 
 class RedisConfigManager
 {
