@@ -1,10 +1,11 @@
 <?php
 
-namespace App\Services;
+namespace RT\Shared\Services;
 
 use Illuminate\Support\Facades\Redis;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
+use Exception;
 
 class ClientConfigCache
 {
