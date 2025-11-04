@@ -1,0 +1,4 @@
+.env
+composer.lock
+logs/nginx/access.log
+logs/nginx/error.log
