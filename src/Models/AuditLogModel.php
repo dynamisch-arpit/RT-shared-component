@@ -114,13 +114,6 @@ class AuditLogModel
      */
     public function saveAuditLog(array $payload)
     {
-        // Log client and payload information
-        Logger::log('info', 'Attempting to save audit log', [
-            'client' => $this->clientId,
-            'type' => $payload['Type'] ?? 'N/A',
-            'table' => $payload['TableName'] ?? 'N/A',
-            'primary_key' => $payload['PrimaryKeyValue'] ?? 'N/A'
-        ]);
         
         try {
             // Get and log database connection details
@@ -131,18 +124,10 @@ class AuditLogModel
             $host = $pdo->getAttribute(PDO::ATTR_CONNECTION_STATUS);
             $dbName = $pdo->query('SELECT DATABASE()')->fetchColumn();
             
-            Logger::log('debug', 'Database connection established', [
-                'dsn' => $dsn,
-                'host' => $host,
-                'database' => $dbName
-            ]);
-            
             // Start transaction for atomicity
-            Logger::log('debug', 'Starting database transaction');
             $pdo->beginTransaction();
             
             // Ensure the audit table exists for this client
-            Logger::log('debug', 'Ensuring table exists', ['table' => $this->tableName]);
             $this->ensureTableExists($pdo);
             
             $sql = "INSERT INTO `{$this->tableName}` (
@@ -158,44 +143,29 @@ class AuditLogModel
             )";
             
             // Log the SQL query (without parameters for security)
-            Logger::log('debug', 'Preparing SQL', ['sql' => preg_replace('/\s+/', ' ', trim($sql))]);
             
             $stmt = $pdo->prepare($sql);
             
             // Current timestamp for created_at
             $now = date('Y-m-d H:i:s');
             
-            // Log parameter binding
-            Logger::log('debug', 'Binding parameters to prepared statement');
-            
             // Bind parameters with proper null handling
             $this->bindAuditLogParams($stmt, $payload, $now);
             
             // Execute the query
-            Logger::log('debug', 'Executing prepared statement');
             $stmt->execute();
             
             $lastInsertId = $pdo->lastInsertId();
             
             // Commit the transaction
-            Logger::log('debug', 'Committing transaction', ['last_insert_id' => $lastInsertId]);
             $pdo->commit();
-            
-            Logger::log('info', 'Successfully saved audit log', ['id' => $lastInsertId]);
             
             return $lastInsertId;
             
         } catch (\Exception $e) {
-            // Log the full error with stack trace
-            Logger::log('error', 'Error saving audit log', [
-                'message' => $e->getMessage(),
-                'exception' => get_class($e),
-                'trace' => $e->getTraceAsString()
-            ]);
             
             // Rollback the transaction in case of error
             if (isset($pdo) && $pdo->inTransaction()) {
-                Logger::log('warning', 'Rolling back transaction due to error');
                 $pdo->rollBack();
             }
             
@@ -447,11 +417,6 @@ public function getAuditLogsCount(array $filters = []): int
             return [];
         }
 
-        Logger::log('info', 'Attempting to save bulk audit logs', [
-            'client' => $this->clientId,
-            'count' => count($auditLogs)
-        ]);
-
         $pdo = null;
         $insertedIds = [];
         $currentTimestamp = date('Y-m-d H:i:s');
@@ -462,16 +427,9 @@ public function getAuditLogsCount(array $filters = []): int
             // Log database connection details
             $dsn = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
             $dbName = $pdo->query('SELECT DATABASE()')->fetchColumn();
-            
-            Logger::log('debug', 'Database connection established for bulk insert', [
-                'dsn' => $dsn,
-                'database' => $dbName,
-                'table' => $this->tableName
-            ]);
 
             // Start transaction
             $pdo->beginTransaction();
-            Logger::log('debug', 'Began database transaction for bulk insert');
 
             // Ensure the audit table exists
             $this->ensureTableExists($pdo);
@@ -527,21 +485,12 @@ public function getAuditLogsCount(array $filters = []): int
 
                 } catch (\Exception $e) {
                     // Log the error but continue with other records
-                    Logger::log('error', 'Error processing audit log entry in bulk insert', [
-                        'index' => $index,
-                        'error' => $e->getMessage(),
-                        'payload' => array_intersect_key($payload, array_flip(['Type', 'TableName', 'PrimaryKeyValue', 'FieldName']))
-                    ]);
                     $insertedIds[$index] = false;
                 }
             }
 
             // Commit the transaction
             $pdo->commit();
-            Logger::log('info', 'Successfully committed bulk insert transaction', [
-                'success_count' => count(array_filter($insertedIds)),
-                'total_count' => count($auditLogs)
-            ]);
 
             return $insertedIds;
 
@@ -550,19 +499,9 @@ public function getAuditLogsCount(array $filters = []): int
             if ($pdo && $pdo->inTransaction()) {
                 try {
                     $pdo->rollBack();
-                    Logger::log('warning', 'Rolled back bulk insert transaction due to error');
                 } catch (\Exception $rollbackEx) {
-                    Logger::log('error', 'Failed to rollback transaction', [
-                        'error' => $rollbackEx->getMessage()
-                    ]);
                 }
             }
-
-            Logger::log('error', 'Failed to save bulk audit logs', [
-                'error' => $e->getMessage(),
-                'exception' => get_class($e),
-                'trace' => $e->getTraceAsString()
-            ]);
 
             throw new \RuntimeException(
                 "Failed to save bulk audit logs: " . $e->getMessage(),

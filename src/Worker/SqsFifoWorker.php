@@ -169,6 +169,7 @@ class SqsFifoWorker
         }
 
         foreach ($messages as $message) {
+           
             try {
                 $result = $processor($message);
                 
@@ -176,7 +177,7 @@ class SqsFifoWorker
                     $this->queue->deleteMessage($message['ReceiptHandle']);
                 }
             } catch (\Exception $e) {
-                $this->handleError($e, $message);
+                $this->handleError($e, $message, $this->config);
                 
                 // Check if we should retry
                 $receiveCount = $message['Attributes']['ApproximateReceiveCount'] ?? 1;
