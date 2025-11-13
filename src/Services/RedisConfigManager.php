@@ -30,35 +30,29 @@ class RedisConfigManager
         $this->cacheService = $cacheService;
     }
 
-    public function getDbConfig(string $clientName): array
-    {
-        echo "\n[RedisConfigManager] Getting DB config for client: {$clientName}\n";
-        
+    public function getDbConfig(string $clientName): object
+    {        
         // Try to get from cache first
         $cachedConfig = $this->cacheService->getConfig($clientName);
-        echo "[RedisConfigManager] Cached config: " . ($cachedConfig ? 'found' : 'not found') . "\n";
         
         if ($cachedConfig !== null) {
-            echo "[RedisConfigManager] Returning cached config\n";
-            return $cachedConfig;
+            $cachedConfigobject = json_decode(json_encode($cachedConfig));
+            return $cachedConfigobject;
         }
 
         try {
-            echo "[RedisConfigManager] Cache miss, fetching from database\n";
             $config = $this->fetchFromDatabase($clientName);
-            echo "[RedisConfigManager] Database result: " . ($config ? 'found' : 'not found') . "\n";
             
             if ($config) {
                 $configArray = (array)$config;
-                echo "[RedisConfigManager] Storing in cache\n";
                 $this->cacheService->storeConfig($clientName, $configArray);
-                return $configArray;
+                $cachedConfigobject = json_decode(json_encode($configArray));
+                return $cachedConfigobject;
             }
                 
             throw new \RuntimeException("Database configuration not found for client: {$clientName}");
                 
         } catch (\Exception $e) {
-            echo "[RedisConfigManager] Error: " . $e->getMessage() . "\n";
             \Illuminate\Support\Facades\Log::error('Failed to get DB config', [
                 'client' => $clientName,
                 'error' => $e->getMessage(),
@@ -73,13 +67,10 @@ class RedisConfigManager
      */
     private function fetchFromDatabase(string $clientName)
     {
-        echo "[RedisConfigManager] Fetching from database for client: {$clientName}\n";
         $result = DB::table('client_configs')
             ->where('client_name', $clientName)
             ->where('is_active', true)
             ->first();
-        
-        echo "[RedisConfigManager] Database query result: " . print_r($result, true) . "\n";
         return $result;
     }
     

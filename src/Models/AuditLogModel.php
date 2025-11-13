@@ -6,29 +6,8 @@ use PDO;
 use PDOException;
 use RT\SharedComponents\Services\DbConnectionManager;
 use RT\SharedComponents\Exceptions\DatabaseConfigException;
-
-// Conditionally use Laravel's Log facade if available
-if (class_exists('\\Illuminate\\Support\\Facades\\Log')) {
-    class_alias('\\Illuminate\\Support\\Facades\\Log', 'RT\\SharedComponents\\Models\\LogFacade');
-}
-
-/**
- * Simple logger class that falls back to error_log if Laravel's logger is not available
- */
-class Logger
-{
-    public static function log($level, $message, $context = [])
-    {
-        if (class_exists('RT\\SharedComponents\\Models\\LogFacade')) {
-            // Use Laravel's logger if available
-            LogFacade::{$level}($message, $context);
-        } else {
-            // Fallback to error_log
-            $contextStr = !empty($context) ? ' ' . json_encode($context) : '';
-            error_log(sprintf('[%s] %s%s', strtoupper($level), $message, $contextStr));
-        }
-    }
-}
+use RT\SharedComponents\Services\RedisConfigManager;
+use RT\SharedComponents\Services\ClientConfigCache;
 
 class AuditLogModel
 {
@@ -95,12 +74,6 @@ class AuditLogModel
             $dbName = $pdo->query('SELECT DATABASE()')->fetchColumn();
             return $dbName ?: null;
         } catch (\Exception $e) {
-            // Log directly to error_log to avoid dependency on Logger class
-            error_log(sprintf(
-                'Database connection test failed for client %s: %s',
-                $this->clientId,
-                $e->getMessage()
-            ));
             throw $e; // Re-throw to let the caller handle it
         }
     }
@@ -114,7 +87,6 @@ class AuditLogModel
      */
     public function saveAuditLog(array $payload)
     {
-        
         try {
             // Get and log database connection details
             $pdo = $this->getConnection();
@@ -590,8 +562,6 @@ public function getAuditLogsByDateRange(string $startDate, string $endDate, stri
             
             $result = $stmt->execute();
             $deletedRows = $stmt->rowCount();
-            
-            echo "Cleaned up {$deletedRows} old audit log entries\n";
             return $deletedRows;
             
         } catch (PDOException $e) {
@@ -606,8 +576,6 @@ public function getAuditLogsByDateRange(string $startDate, string $endDate, stri
             $clientConfig = $this->getClientDatabaseConfig($clientName);
             
             if ($clientConfig === null) {
-                // $this->logMessage("No database configuration found for client: " . $clientName, 'WARN');
-                echo "No database configuration found for client: " . $clientName . "\n";
                 return null;
             }
             
@@ -627,8 +595,6 @@ public function getAuditLogsByDateRange(string $startDate, string $endDate, stri
                 
                 // Create the AuditLogModel with the PDO connection
                 $auditLogModel = new \RT\SharedComponents\Models\AuditLogModel($clientName, $pdo);
-                // $this->logMessage("Created AuditLogModel with client-specific database: " . $clientConfig['database'], 'DEBUG');
-                echo "Created AuditLogModel with client-specific database: " . $clientConfig['database'] . "\n";
                 
                 return $auditLogModel;
                 
@@ -639,8 +605,6 @@ public function getAuditLogsByDateRange(string $startDate, string $endDate, stri
             }
             
         } catch (\Exception $e) {
-            // $this->logMessage("Error creating AuditLogModel for client $clientName: " . $e->getMessage(), 'ERROR');
-            echo "Error creating AuditLogModel for client $clientName: " . $e->getMessage() . "\n";
             return null;
         }
     }
@@ -669,41 +633,24 @@ public function getAuditLogsByDateRange(string $startDate, string $endDate, stri
                         PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci"
                     ]
                 );
-                echo "Successfully connected to $dbName database\n";
             }
-            
-            // Query client configuration
+            // $clientConfigCache = new ClientConfigCache();
+            // $redisConfigManager = new RedisConfigManager();
+            // $config = $redisConfigManager->getDbConfig($clientName);
+
             $query = "
                 SELECT db_host, db_name, db_username, db_password 
                 FROM client_configs 
                 WHERE client_name = :client_name AND is_active = 1
                 LIMIT 1
-            ";
-
-            echo "Querying client configuration for client: {$clientName}\n";
+            ";            
             $stmt = $pdo->prepare($query);
             $stmt->execute([':client_name' => $clientName]);
             $config = $stmt->fetch();
-            
+
             if (!$config) {
-                echo "No active database configuration found for client: {$clientName}\n";
-                echo sprintf(
-                    'Query executed: %s with params: %s',
-                    $query,
-                    json_encode(['client_name' => $clientName])
-                ) . "\n";
-                
                 return null;
             }
-            
-            echo sprintf(
-                'Found database configuration for client: %s. Host: %s, DB: %s',
-                $clientName,
-                $config['db_host'],
-                $config['db_name']
-            ) . "\n";
-
-            echo 'Found database configuration for client: ' . $clientName . "\n";
             
             return [
                 'driver' => 'mysql',
@@ -719,8 +666,6 @@ public function getAuditLogsByDateRange(string $startDate, string $endDate, stri
             ];
             
         } catch (\PDOException $e) {
-            // $this->logMessage("Error fetching client database config: " . $e->getMessage(), 'ERROR');
-            echo "Error fetching client database config: " . $e->getMessage() . "\n";
             return null;
         }
     }
@@ -736,7 +681,6 @@ public function getAuditLogsByDateRange(string $startDate, string $endDate, stri
                 'password' => getenv('DB_PASSWORD') ?: '',
                 'client_id' => getenv('CLIENT_ID') ?: 'document_service'
             ];
-            // $this->logMessage("initializeDatabase: " . json_encode($dbConfig), 'ERROR');
             // Initialize the AuditLogModel with the database configuration
             $this->auditLogModel = new AuditLogModel($dbConfig['client_id']);
             
@@ -756,9 +700,6 @@ public function getAuditLogsByDateRange(string $startDate, string $endDate, stri
                     'engine' => null,
                 ]);
             }
-            
-            // $this->logMessage("Database connection initialized successfully");
-            echo "Database connection initialized successfully\n";
             $this->createClientAuditLogModel($auditData, $clientName);
         } catch (Exception $e) {
             $this->logMessage("Failed to initialize database: " . $e->getMessage(), 'ERROR');

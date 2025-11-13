@@ -21,23 +21,16 @@ class ClientConfigCache
     public function getConfig(string $clientName): ?array
     {
         try {
-            echo "\n[ClientConfigCache] Getting config for client: {$clientName}\n";
             $cacheKey = $this->getCacheKey($clientName);
-            echo "[ClientConfigCache] Cache key: {$cacheKey}\n";
             
             $cached = Redis::get($cacheKey);
-            echo "[ClientConfigCache] Raw cached value: " . ($cached ? 'exists' : 'not found') . "\n";
             
             if ($cached) {
                 $decoded = json_decode($cached, true);
-                echo "[ClientConfigCache] Decoded config: " . print_r($decoded, true) . "\n";
                 return $decoded;
             }
-            
-            echo "[ClientConfigCache] No cache found for client: {$clientName}\n";
             return null;
         } catch (\Exception $e) {
-            echo "[ClientConfigCache] Error: " . $e->getMessage() . "\n";
             Log::error('Failed to get client config from cache', [
                 'client' => $clientName,
                 'error' => $e->getMessage()
@@ -55,20 +48,14 @@ class ClientConfigCache
      */
     public function storeConfig(string $clientName, array $config): bool
     {
-        try {
-            echo "\n[ClientConfigCache] Storing config for client: {$clientName}\n";
-            echo "[ClientConfigCache] Config to store: " . print_r($config, true) . "\n";
-            
+        try {            
             $result = (bool) Redis::setex(
                 $this->getCacheKey($clientName),
                 self::CACHE_TTL,
                 json_encode($config)
             );
-            
-            echo "[ClientConfigCache] Store result: " . ($result ? 'success' : 'failed') . "\n";
             return $result;
         } catch (\Exception $e) {
-            echo "[ClientConfigCache] Store error: " . $e->getMessage() . "\n";
             Log::error('Failed to store client config in cache', [
                 'client' => $clientName,
                 'error' => $e->getMessage()
